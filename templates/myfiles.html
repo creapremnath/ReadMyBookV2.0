@@ -414,14 +414,39 @@
     }
 
     function deleteFile(index) {
-        files.splice(index, 1);
-        renderFileList();
-        fileTitle.innerText = "Select a File";
-        fileContent.innerHTML = "";
-        audioPlayer.pause();
-        audioSource.src = "";
-        progressBar.value = 0;
-    }
+    const file = files[index];
+
+    // Send DELETE request to the backend with the file ID (or file identifier)
+    fetch('/deletefile', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            file_id: file.id // Assuming 'file.id' is the unique identifier for the file
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // If deletion is successful, update the client-side
+            files.splice(index, 1);
+            renderFileList();
+            fileTitle.innerText = "Select a File";
+            fileContent.innerHTML = "";
+            audioPlayer.pause();
+            audioSource.src = "";
+            progressBar.value = 0;
+        } else {
+            alert('Error deleting file');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error deleting file');
+    });
+}
+
 
     // Update the progress bar as the audio plays
     audioPlayer.addEventListener('timeupdate', function () {

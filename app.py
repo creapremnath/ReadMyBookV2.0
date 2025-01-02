@@ -6,7 +6,8 @@ from models import User, Pages
 from PyPDF2 import PdfReader
 import uuid
 from config import IMAGEDIR, AUDIODIR, PDFDIR, SECRET_KEY
-from controller import text_to_audio,image_to_text
+# from controller import text_to_audio,image_to_text,text_to_audio2
+# from mp3joiner import merge_mp3
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -213,25 +214,33 @@ def ptv():
     if not common_uuid_pdf:
         return "Not Found!", 400
     reader = PdfReader(f'{PDFDIR}/{common_uuid_pdf}.pdf')
+    selected_option = request.form.get('option')
+    print(len(reader.pages))
     # extracting text from page
     #multiple pages pdf file
     text = ''
+    files_to_merge=[]
     for i in range(len(reader.pages)):
         page = reader.pages[i]
-        text += page.extract_text()
-    selected_option = request.form.get('option')
-    text = page.extract_text()
-    selected_option = request.form.get('option')
-    # text to audio conversion
-    audio_filename=text_to_audio(voice=selected_option,text=text,audio_id=common_uuid_pdf)
-    print(audio_filename)
+        page_text = page.extract_text()
+        audio_list=text_to_audio2(voice=selected_option,text=page_text,audio_id=f"a{i}")
+        
+        print(f"Audio generated for page {i+1}: {audio_list}")
+        files_to_merge.append(audio_list)
+        text += page_text
+    f = open("pdftroubleshoot.txt", "a")
+    f.write(text)
+    f.close()
+    # merging audio files
+    print("list of files to merge",files_to_merge)
+    audio_path=merge_mp3(files=files_to_merge,output_file=common_uuid_pdf)
     message2 = "AudioBook Generated Successfully. Please, Scroll down to read it!"
     pdf_path = f"{PDFDIR}/{common_uuid_pdf}.pdf"
     logging.info(f"AudioBook generated from PDF.")
     result = create_pages(user_id=user_id, page_type="pdf", page_uuid=common_uuid_pdf,file_extension="pdf")
     print(result)  # Output: "Page created successfully!" or "Error creating new page!"
     logging.info("Pages created successfully")
-    return render_template("pdftovoice.html", pdf_path=pdf_path, audio_filename=audio_filename,message2=message2)
+    return render_template("pdftovoice.html", pdf_path=pdf_path, audio_filename=audio_path,message2=message2)
 
 
 
@@ -263,10 +272,9 @@ def myfiles():
     pages = Pages.query.filter_by(user_id=user_id).all()
     
     
-    {"type": "pdf", "title": "Sample PDF 1", "path": "/static/pdf/sample1.pdf", "audio": "/static/audio/audio1.mp3"},
     # Create a list of dictionaries representing the pages
     page_data = [
-        {"type": page.page_type, "title": f"Page ID {page.id}", "path": f"/static/{page.page_type}s/{page.page_uuid}.{page.file_extension}", "audio": f"/static/audios/{page.page_uuid}.mp3"}
+        {"id":page.id,"type": page.page_type, "title": f"Page ID {page.id}", "path": f"/static/{page.page_type}s/{page.page_uuid}.{page.file_extension}", "audio": f"/static/audios/{page.page_uuid}.mp3"}
         for page in pages
     ]
     print(page_data)
@@ -279,6 +287,55 @@ def myfiles():
 
     # Render the HTML page, passing the page data
     return render_template('myfiles.html', files=page_data)
+
+
+@app.route('/deletefile', methods=['POST'])
+def deletefiles():
+    data = request.get_json()
+    print(data)  # Extract JSON data from the request
+
+    # Extract file_id from the payload
+    file_id = data.get('file_id')
+    
+    # Check if file_id is provided
+    if not file_id:
+        return jsonify({'success': False, 'message': 'File ID is missing'}), 400
+
+    # Find the file in the database using the file_id
+    file_to_delete = Pages.query.filter_by(id=file_id).first()
+    print("file_to_delete",file_to_delete)
+
+    
+
+    if file_to_delete:
+        try:
+            # Construct the file paths for file1 and file2
+            file1 = f"static/{file_to_delete.page_type}s/{file_to_delete.page_uuid}.{file_to_delete.file_extension}"  # File 1 path
+            file2 = f"{AUDIODIR}{file_to_delete.page_uuid}.mp3"  # File 2 path
+            print(file1,file2)
+
+
+            # Delete file1 if it exists
+            try:
+                os.remove(file1)
+                os.remove(file2)
+            except OSError:
+                logging.error(f"Error deleting file: {file1}")
+    
+
+            # Delete the file record from the database
+            db.session.delete(file_to_delete)
+            db.session.commit()  # Commit the deletion to the database
+            
+            return jsonify({'success': True, 'message': 'Files deleted successfully'}), 200
+        
+        except Exception as e:
+            # If there was an error during the deletion process
+            db.session.rollback()  # Rollback any changes if something goes wrong
+            return jsonify({'success': False, 'message': f'Error deleting files: {str(e)}'}), 500
+    else:
+        return jsonify({'success': False, 'message': 'File not found in the database'}), 404
+
 
 
 @app.route('/pdftovoice', methods=['GET', 'POST'])

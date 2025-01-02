@@ -27,6 +27,7 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 IMAGEDIR = os.getenv("IMAGEDIR")
 AUDIODIR= os.getenv("AUDIODIR")
 PDFDIR= os.getenv("PDFDIR")
+TEMPAUDIODIR= os.getenv("TEMPAUDIODIR")
 
 
 SECRET_KEY = os.getenv("SECRET_KEY")
