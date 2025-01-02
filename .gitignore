@@ -169,3 +169,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+#Ignore user Files
+audios/*.mp3
+images/*.jpg
+pdf/*.pdf
